@@ -1,9 +1,19 @@
-#include <Arduino_JSON.h>
+/*
+    ESP-NOW Broadcast Slave
+    Lucas Saavedra Vaz - 2024
+
+    This sketch demonstrates how to receive broadcast messages from a master device using the ESP-NOW protocol.
+
+    The master device will broadcast a message every 5 seconds to all devices within the network.
+
+    The slave devices will receive the broadcasted messages. If they are not from a known master, they will be registered as a new master
+    using a callback function.
+*/
+
 #include "ESP32_NOW.h"
 #include "WiFi.h"
-#include "String.h"
 
-//#include <esp_mac.h> // For the MAC2STR and MACSTR macros
+#include <esp_mac.h> // For the MAC2STR and MACSTR macros
 
 #include <vector>
 
@@ -11,6 +21,9 @@
 
 #define ESPNOW_WIFI_CHANNEL 6
 
+/* Classes */
+
+// Creating a new class that inherits from the ESP_NOW_Peer class is required.
 
 class ESP_NOW_Peer_Class : public ESP_NOW_Peer {
 public:
@@ -34,9 +47,21 @@ public:
 
     // Function to print the received messages from the master
     void onReceive(const uint8_t *data, size_t len, bool broadcast) {
-        Serial.printf("Received a message from master " MACSTR " (%s)\n", MAC2STR(addr()), broadcast ? "broadcast" : "unicast");
-        Serial.printf("  Message: %s\n", (char *)data);
+//        Serial.printf("Received a message from master " MACSTR " (%s)\n", MAC2STR(addr()), broadcast ? "broadcast" : "unicast");
+//        Serial.printf("  Message: %s\n", (char *)data);
+          Serial.println((char *)data);
     }
+
+
+    // Function to send a message to all devices within the network
+    bool send_message(const uint8_t *data, size_t len) {
+        if (!send(data, len)) {
+            log_e("Failed to broadcast message");
+            return false;
+        }
+        return true;
+    }
+
 };
 
 /* Global Variables */
@@ -49,8 +74,8 @@ std::vector<ESP_NOW_Peer_Class> masters;
 // Callback called when an unknown peer sends a message
 void register_new_master(const esp_now_recv_info_t *info, const uint8_t *data, int len, void *arg) {
     if (memcmp(info->des_addr, ESP_NOW.BROADCAST_ADDR, 6) == 0) {
-        Serial.printf("Unknown peer " MACSTR " sent a broadcast message\n", MAC2STR(info->src_addr));
-        Serial.println("Registering the peer as a master");
+//        Serial.printf("Unknown peer " MACSTR " sent a broadcast message\n", MAC2STR(info->src_addr));
+//        Serial.println("Registering the peer as a master");
 
         ESP_NOW_Peer_Class new_master(info->src_addr, ESPNOW_WIFI_CHANNEL, WIFI_IF_STA, NULL);
 
@@ -59,6 +84,10 @@ void register_new_master(const esp_now_recv_info_t *info, const uint8_t *data, i
             Serial.println("Failed to register the new master");
             return;
         }
+
+        // Send the message to the robot over USB serial
+        Serial.println((char *)data);
+
     } else {
         // The slave will only receive broadcast messages
         log_v("Received a unicast message from " MACSTR, MAC2STR(info->src_addr));
@@ -66,19 +95,17 @@ void register_new_master(const esp_now_recv_info_t *info, const uint8_t *data, i
     }
 }
 
-
-/* Global Variables */
-
-uint32_t msg_count = 0;
+//uint8_t peer_mac[6] = {0x84, 0xFC, 0xE6, 0x50, 0x99, 0x37};
+uint8_t peer_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 // Create a boradcast peer object
-ESP_NOW_Broadcast_Peer broadcast_peer(ESPNOW_WIFI_CHANNEL, WIFI_IF_STA, NULL);
+ESP_NOW_Peer_Class broadcast_peer(peer_mac, ESPNOW_WIFI_CHANNEL, WIFI_IF_STA, NULL);
+
+/* Main */
 
 void setup() {
-  // put your setup code here, to run once:
-  Serial.begin(115200);
-  while (!Serial);
-  Serial.println("ESP32C6 Dev board");
+    Serial.begin(115200);
+    while (!Serial) delay(10);
 
     // Initialize the Wi-Fi module
     WiFi.mode(WIFI_STA);
@@ -99,24 +126,28 @@ void setup() {
         ESP.restart();
     }
 
+    if(!broadcast_peer.add_peer()) {
+      Serial.println("Failed to add broadcast_peer");
+    }
+
     // Register the new peer callback
     ESP_NOW.onNewPeer(register_new_master, NULL);
 
-  Serial.println("ESP NOW initialized");
+    Serial.println("Setup complete. Waiting for a master to broadcast a message...");
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+
+  // Copy text line from serial USB to ESP-NOW on Robo24 watch controller
   while (Serial.available() > 0) {
 
     String str = Serial.readString();
-    Serial.print(str);
-    // char data[256];
-    // str.toCharArray(data, 256);
-
-    // if (!broadcast_peer.send_message((uint8_t *)data, sizeof(data))) {
-    //     Serial.println("Failed to broadcast message");
-    // }
+    unsigned char data[256];
+    str.getBytes(data, sizeof(data));
+    Serial.printf("Broadcasting message: %s\n", data);
+    if (!broadcast_peer.send_message((uint8_t *)data, sizeof(data))) {
+         Serial.println("Failed to broadcast message");
+    }
 
   }
   delay(10);
