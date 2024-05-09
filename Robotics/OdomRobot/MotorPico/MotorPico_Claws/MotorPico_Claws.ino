@@ -103,9 +103,9 @@ uint32_t diffTimeUs = 0;
 
 // Min and Max for the 2 servos used
 #define clawUsecMinL  600 /* OPENED */
-#define clawUsecMaxL 2150 /* CLOSED */
+#define clawUsecMaxL 2300 /*2150 /* CLOSED */
 
-#define clawUsecMinR  750 /* CLOSED */
+#define clawUsecMinR  650 /*750 /* CLOSED */
 #define clawUsecMaxR 2300 /* OPENED */
 
 void InitServos() {

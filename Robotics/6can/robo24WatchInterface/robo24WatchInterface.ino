@@ -8,6 +8,10 @@
 
     The slave devices will receive the broadcasted messages. If they are not from a known master, they will be registered as a new master
     using a callback function.
+
+    04-23-2024 MRW added send function
+      Bridges serial port to espnow - no modification or validation
+      TODO: Use unicats addresses - this is OK for prototype
 */
 
 #include "ESP32_NOW.h"
@@ -20,6 +24,7 @@
 /* Definitions */
 
 #define ESPNOW_WIFI_CHANNEL 6
+uint8_t peer_mac_addr[6] = {0x84, 0xFC, 0xE6, 0x50, 0x99, 0x3C};
 
 /* Classes */
 
@@ -45,7 +50,7 @@ public:
         return true;
     }
 
-    // Function to print the received messages from the master
+    // Function to repeat recieved espnow messages from watch to robot ROS over serial
     void onReceive(const uint8_t *data, size_t len, bool broadcast) {
 //        Serial.printf("Received a message from master " MACSTR " (%s)\n", MAC2STR(addr()), broadcast ? "broadcast" : "unicast");
 //        Serial.printf("  Message: %s\n", (char *)data);
@@ -73,7 +78,8 @@ std::vector<ESP_NOW_Peer_Class> masters;
 
 // Callback called when an unknown peer sends a message
 void register_new_master(const esp_now_recv_info_t *info, const uint8_t *data, int len, void *arg) {
-    if (memcmp(info->des_addr, ESP_NOW.BROADCAST_ADDR, 6) == 0) {
+//    if (memcmp(info->des_addr, ESP_NOW.BROADCAST_ADDR, 6) == 0) {
+    if (memcmp(info->src_addr, peer_mac_addr, 6) == 0) {
 //        Serial.printf("Unknown peer " MACSTR " sent a broadcast message\n", MAC2STR(info->src_addr));
 //        Serial.println("Registering the peer as a master");
 
@@ -85,18 +91,22 @@ void register_new_master(const esp_now_recv_info_t *info, const uint8_t *data, i
             return;
         }
 
-        // Send the message to the robot over USB serial
+        // repeat message from watch to robot ROS over serial
         Serial.println((char *)data);
 
     } else {
         // The slave will only receive broadcast messages
         log_v("Received a unicast message from " MACSTR, MAC2STR(info->src_addr));
         log_v("Igorning the message");
+        // Serial.print("Received a message from unknown peer ");
+        // printf("%02x:%02x:%02x:%02x:%02x:%02x != ",MAC2STR(peer_mac_addr));
+        // printf("%02x:%02x:%02x:%02x:%02x:%02x\n",MAC2STR(info->src_addr));
+        // Serial.println("Igorning the message");
     }
 }
 
-//uint8_t peer_mac[6] = {0x84, 0xFC, 0xE6, 0x50, 0x99, 0x37};
-uint8_t peer_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+uint8_t peer_mac[6] = {0x84, 0xFC, 0xE6, 0x50, 0x99, 0x3C};
+//uint8_t peer_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 // Create a boradcast peer object
 ESP_NOW_Peer_Class broadcast_peer(peer_mac, ESPNOW_WIFI_CHANNEL, WIFI_IF_STA, NULL);
@@ -138,10 +148,10 @@ void setup() {
 
 void loop() {
 
-  // Copy text line from serial USB to ESP-NOW on Robo24 watch controller
-  while (Serial.available() > 0) {
+  // Repeat serial message from robot ROS to ESP-NOW on Robo24 watch controller
+  if (Serial.available() > 0) {
 
-    String str = Serial.readString();
+    String str = Serial.readStringUntil('\n');
     unsigned char data[256];
     str.getBytes(data, sizeof(data));
     Serial.printf("Broadcasting message: %s\n", data);
