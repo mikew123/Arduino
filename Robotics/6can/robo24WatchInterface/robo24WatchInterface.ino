@@ -154,7 +154,7 @@ void loop() {
     String str = Serial.readStringUntil('\n');
     unsigned char data[256];
     str.getBytes(data, sizeof(data));
-    Serial.printf("Broadcasting message: %s\n", data);
+    //Serial.printf("Broadcasting message: %s\n", data);
     if (!broadcast_peer.send_message((uint8_t *)data, sizeof(data))) {
          Serial.println("Failed to broadcast message");
     }

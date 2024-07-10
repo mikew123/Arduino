@@ -214,7 +214,8 @@ void InitMotorDrivers(){
 
 // +pct = fwd, -pct = rev, 0pct = stop-braked
 // pct limited to +-100%
-void MotorDrivePct(int pctL, int pctR) {
+//void MotorDrivePct(int pctL, int pctR) {
+void MotorDrivePct(float pctL, float pctR) {
   pctL = -pctL; // opposite rotation as Right Wheel
     // Limit to +-100 pct
     if(pctL>100) pctL=100;
